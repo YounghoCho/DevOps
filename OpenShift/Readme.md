@@ -5,4 +5,4 @@
 > Shell (Automation)
 
 #When You Use
-> You Only need to change provision.env File
+> You only need to change provision.env File
