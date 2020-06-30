@@ -1,4 +1,8 @@
-Ansible (Infra as a Code)
-OpenShift (Kubernetes = k8s)
-Gluster (Storage)
-Shell (Automation)
+#I Used 
+> Ansible (Infra as a Code)
+> OpenShift (Kubernetes = k8s)
+> Gluster (Storage)
+> Shell (Automation)
+
+#When You Use
+> You Only need to change provision.env File
