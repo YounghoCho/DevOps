@@ -1,0 +1,28 @@
+[rhel-7-server]
+name=Fyre Local OS repository
+baseurl=http://cyanic1.fyre.ibm.com/rhel-7-server-rpms
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+gpgcheck=1
+enabled=1
+
+[rhel-7-server-extras]
+name=Fyre Local Supplementary repository
+baseurl=http://cyanic1.fyre.ibm.com/rhel-7-server-extras-rpms
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+gpgcheck=1
+enabled=1
+
+[rhel-7-server-ose]
+name=Fyre Local Optional repository
+baseurl=http://cyanic1.fyre.ibm.com/rhel-7-server-ose-3.11-rpms
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+gpgcheck=1
+enabled=1
+
+[rhel-7-server-ansible]
+name=Fyre Local Extras repository
+baseurl=http://cyanic1.fyre.ibm.com/rhel-7-server-ansible-2.6-rpms
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+gpgcheck=1
+enabled=1
+

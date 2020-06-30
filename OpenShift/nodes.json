@@ -1,0 +1,45 @@
+{
+	"fyre": {
+		"creds": {
+			"username": "<FYRE_USERNAME>",
+			"api_key": "<FYRE_API_KEY>"
+		}
+	},
+	"product_group_id": "<FYRE_PRODUCT_GROUP_ID>",
+	"cluster_prefix": "<FYRE_CLUSTER_PREFIX>",
+	"site": "<FYRE_SITE>",
+	"clusterconfig": {
+		"instance_type": "virtual_server",
+		"platform": "x"
+	},
+	"<FYRE_CLUSTER_PREFIX>": [
+		{
+			"name": "<FYRE_MASTER>",
+			"count": 1,
+			"cpu": 8,
+			"memory": 24,
+			"os": "Redhat 7.6",
+			"publicvlan": "y",
+			"privatevlan": "n",
+			"additional_disks": [
+				{
+					"size": 512
+				}
+			]
+		},
+		{
+			"name": "<FYRE_WORKER>",
+			"count": <N_WORKER>,
+			"cpu": 16,
+			"memory": 58,
+			"os": "Redhat 7.6",
+			"publicvlan": "y",
+			"privatevlan": "n",
+			"additional_disks": [
+				{
+					"size": 512
+				}
+			]
+		}
+	]
+}
