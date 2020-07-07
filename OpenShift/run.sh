@@ -17,10 +17,11 @@ mkdir ${START_TIME}
 echo "new directory is " ${START_TIME}
   
 # Get missing password and API key
+# 파일에서 읽어온 패스워드가 없으면 직접 입력받도록 합니다.
 function getCredentials {
-  if [ -z ${OS_PASSWORD} ]; then
-    echo -n Fyre root password:
-    read -s OS_PASSWORD
+  if [ -z ${OS_PASSWORD} ]; then  # -n은 문자열의 길이가 0이면 true
+    echo -n Fyre root password: # -n은 syntax error를 체크한다
+    read -s OS_PASSWORD # -s는 stdin으로 비밀번호를 입력 받습니다
     echo
   fi
   if [ -z ${FYRE_API_KEY} ]; then
@@ -41,12 +42,12 @@ function setTempDir {
   TEMP_JSON=${START_TIME}/nodes.json
   cp nodes.json ${TEMP_JSON}
 
-  sed -i "s/<FYRE_USERNAME>/${FYRE_USERNAME}/" ${TEMP_JSON}
-  sed -i "s/<FYRE_API_KEY>/${FYRE_API_KEY}/" ${TEMP_JSON}
+  sed -i "s/<FYRE_USERNAME>/${FYRE_USERNAME}/" ${TEMP_JSON} #i는 변경되는 값을 실제 파일에 저장하는 옵션
+  sed -i "s/<FYRE_API_KEY>/${FYRE_API_KEY}/" ${TEMP_JSON} #s는 앞에것을 뒤에것으로 치환하는 옵션
   sed -i "s/<FYRE_PRODUCT_GROUP_ID>/${FYRE_PRODUCT_GROUP_ID}/" ${TEMP_JSON}
   sed -i "s/<FYRE_CLUSTER_PREFIX>/${FYRE_CLUSTER_PREFIX}/g" ${TEMP_JSON}
   sed -i "s/<FYRE_SITE>/${FYRE_SITE}/" ${TEMP_JSON}
-  sed -i "s/<FYRE_MASTER>/${FYRE_MASTER}/" ${TEMP_JSON}
+  sed -i "s/<FYRE_MASTER>/${FYRE_MASTER}/" ${TEMP_JSON} #파일에 기록된 마스터 값을 <FYRE_MASTER>값으로 치환시킨 뒤 TEMP_JSON에 저장한다.
   sed -i "s/<FYRE_WORKER>/${FYRE_WORKER}/" ${TEMP_JSON}
   sed -i "s/<N_WORKER>/${N_WORKER}/" ${TEMP_JSON}
 
@@ -57,11 +58,16 @@ function setTempDir {
 function provisionVMs {
   echo
   echo "### Provisioning VMs"
+  # -X는 http method를 지정하게 하는 옵션
+  # -s는 응답에서 에러를 보이지 않게 하는 옵션
+  # -k는 파일을 요청으로 보내는 옵션(예 : temp_json)
+  # @는 파일 경로를 명시하는 옵션 (예 : @/etc/host)
   echo
   BUILD_RESPONSE=$(curl -X POST -ks -u ${FYRE_USERNAME}:${FYRE_API_KEY} \
     'https://api.fyre.ibm.com/rest/v1/?operation=build' --data @${TEMP_JSON})
+  #위의 API는 Fyre 사이트에 가면 명시되어있다.
   echo ${BUILD_RESPONSE}
-
+  #BUILD_RESPONSE에서 python을 돌린다. json응답 중 status를 ㅂ추출한다.
   BUILD_STATUS=$(echo ${BUILD_RESPONSE} | python -c "import sys, json ; print (json.load(sys.stdin)['status'])")
   if [ "${BUILD_STATUS}" == "error" ]; then
     exit 1
@@ -96,6 +102,7 @@ function provisionVMs {
 }
 
 # Install sshpass
+# sshpass는 noninteractive ssh password provider로 별도의 로그인 과정 없이 파일등에서 읽어서 자동으로 로그인 하는 기능
 function installSSHpass {
   echo
   echo "### Install sshpass"
@@ -114,13 +121,15 @@ function setupVMs {
     echo "### Setup ${HOST}"
     echo
     sshpass -p ${OS_PASSWORD} ssh-copy-id -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa.pub ${HOST}
-#    sshpass -p Inf0sphere! ssh-copy-id -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa.pub yh-master
+    # LVS 라우터가 실제 서버에 네트워크 패킷을 올바르게 포워딩하기 위해 각각의 LVS 라우터 노드는 커널에서 IP 포워딩을 활성화 시켜야한다
+    # LVS는 리눅스 가상 서버
     ssh ${HOST} "sed -ie 's/^net.ipv4.ip_forward = 0/net.ipv4.ip_forward = 1/' /etc/sysctl.conf"
-#    ssh yh-worker-3 "sed -ie 's/^net.ipv4.ip_forward = 0/net.ipv4.ip_forward = 1/' /etc/sysctl.conf"
+    # https://www.kernel.org/doc/Documentation/sysctl/vm.txt 문서에 따르면 max_map_count의 값은 65536으로 되어 있다
+    # 일래스틱서치 5에서는 이 값이 너무 작아서. 효율이 떨어지기 때문에 아래처럼 크게 잡아야 한다
+    # mmapped 파일에 사용 가능한 충분한 가상 메모리가 있도록 최대 맵 수를 구성해야한다
+    # mmap은 파일이나 장치를 메모리에 매핑하는 Unix 시스템 호출
     ssh ${HOST} "echo vm.max_map_count = 262144 >> /etc/sysctl.conf"
-#    ssh yh-master "echo vm.max_map_count = 262144 >> /etc/sysctl.conf"
     ssh ${HOST} sysctl -p
-#    ssh ${HOST} rm -f /etc/yum.repos.d/devit-rh7-x86_64.repo
     scp cyanic1_yum.repo ${HOST}:/etc/yum.repos.d/
     ssh ${HOST} yum repolist
     ssh ${HOST} yum install -y wget git net-tools bind-utils yum-utils iptables-services \
@@ -130,6 +139,7 @@ function setupVMs {
     ssh ${HOST} systemctl start docker
     ssh ${HOST} systemctl enable docker
     ssh ${HOST} yum update -y
+    # e는 다중 명령을 쓸 수 있게 하는 옵션
     ssh ${HOST} "sed -ie 's/^SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config"
     ssh ${HOST} touch /.autorelabel
     ssh ${HOST} reboot
@@ -144,6 +154,9 @@ function checkVMs {
     echo "### Check availability of ${HOST}"
     echo
     READY=1
+    # -ne : 값이 다르면 참
+    # -eq : 값이 같으면 참
+    # $?는 방금 전 실행된 명령의 종료 상태를 1, 0으로 나타낸다
     while [ ${READY} -ne 0 ]; do
       sleep 10
       ssh ${HOST} hostname
@@ -157,6 +170,8 @@ function checkVMs {
 function setupMasterStorage {
   echo
   echo "### Setup /dev/vdb of master node"
+  # 대용량 파일시스템 xfs를 사용한다
+  # mkfs.xfs는 사용할 디스크를 지정한다
   echo
   ssh ${MASTER_HOST} mkfs.xfs /dev/vdb
   ssh ${MASTER_HOST} mkdir /exports
@@ -181,6 +196,7 @@ function makeHostsFile {
   sed -i "s/<MASTER>/${FYRE_CLUSTER_PREFIX}-${FYRE_MASTER}/" ${TEMP_HOSTS_FILE}
 
   echo "[nodes]" >> ${TEMP_HOSTS_FILE}
+  # >>는 앞의 내용을 파일로 쓰는 명령어
   echo "${FYRE_CLUSTER_PREFIX}-${FYRE_MASTER}.fyre.ibm.com openshift_node_group_name='node-config-master-infra-crio'" >> ${TEMP_HOSTS_FILE}
   for (( i=1 ; i<=${N_WORKER} ; i++ )); do
     echo "${FYRE_CLUSTER_PREFIX}-${FYRE_WORKER}-${i}.fyre.ibm.com openshift_node_group_name='node-config-compute-crio'" >> ${TEMP_HOSTS_FILE}
@@ -203,6 +219,7 @@ function runOCPPrerequisites {
 function modifyCRIOConfig {
   echo
   echo "### Modify CRIO configuration"
+  # ICP4D에서는 써야할 프로세스가 1024개가 넘기때문에 증가시켜준다.
   echo
   for HOST in ${HOSTS}; do
     ssh ${HOST} "sed -ie 's/pids_limit = 1024/pids_limit = 8192/' /etc/crio/crio.conf"
