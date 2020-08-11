@@ -146,6 +146,34 @@
       ssh ${HOST} reboot
       echo 
     done
+      echo
+      echo "### Setup ${MASTER_HOST}"
+      echo
+      sshpass -p ${OS_PASSWORD} ssh-copy-id -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa.pub ${MASTER_HOST}
+      # LVS 라우터가 실제 서버에 네트워크 패킷을 올바르게 포워딩하기 위해 각각의 LVS 라우터 노드는 커널에서 IP 포워딩을 활성화 시켜야한다
+      # LVS는 리눅스 가상 서버
+      ssh ${MASTER_HOST} "sed -ie 's/^net.ipv4.ip_forward = 0/net.ipv4.ip_forward = 1/' /etc/sysctl.conf"
+      # https://www.kernel.org/doc/Documentation/sysctl/vm.txt 문서에 따르면 max_map_count의 값은 65536으로 되어 있다
+      # 일래스틱서치 5에서는 이 값이 너무 작아서. 효율이 떨어지기 때문에 아래처럼 크게 잡아야 한다
+      # mmapped 파일에 사용 가능한 충분한 가상 메모리가 있도록 최대 맵 수를 구성해야한다
+      # mmap은 파일이나 장치를 메모리에 매핑하는 Unix 시스템 호출
+      #vm.max_map_count는 가상메모리 제한이다.
+      ssh ${MASTER_HOST} "echo vm.max_map_count = 262144 >> /etc/sysctl.conf"
+      ssh ${MASTER_HOST} sysctl -p
+      scp cyanic1_yum.repo ${MASTER_HOST}:/etc/yum.repos.d/
+      ssh ${MASTER_HOST} yum repolist
+      ssh ${MASTER_HOST} yum install -y wget git net-tools bind-utils yum-utils iptables-services \
+                  bridge-utils bash-completion kexec-tools sos psacct NetworkManager docker-1.13.1 crio
+      ssh ${MASTER_HOST} systemctl start NetworkManager
+      ssh ${MASTER_HOST} systemctl enable NetworkManager
+      ssh ${MASTER_HOST} systemctl start docker
+      ssh ${MASTER_HOST} systemctl enable docker
+      ssh ${MASTER_HOST} yum update -y
+      # e는 다중 명령을 쓸 수 있게 하는 옵션
+      ssh ${MASTER_HOST} "sed -ie 's/^SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config"
+      ssh ${MASTER_HOST} touch /.autorelabel
+      ssh ${MASTER_HOST} reboot
+      echo 
   }
 
   # Availability check after reboot
@@ -180,7 +208,7 @@
     ssh ${MASTER_HOST} mount /exports
   }
 
-  # Instrall ansible to master node
+  # Install ansible to master node
   function installAnsible {
     echo
     echo "### Install ansible to master node"
@@ -232,6 +260,7 @@
   }
 
   # Run OCP Deployment 오래걸리는 구간
+  # master 접근 실패가 나기때문에 이상하지만 master에 직접 들어가서 ansible-playbook을 실행해주자.
   function runOCPDeployment {
     echo 
     echo "### Start OCP deployment"
