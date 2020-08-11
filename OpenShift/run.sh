@@ -287,6 +287,9 @@
 
   # Cleanup temporal files and access
   function cleanUp {
+    echo
+    echo "### cleanUp temp files and access"
+    echo
     rm -Rf ${START_TIME}
     for HOST in ${HOSTS}; do
       scp -q /usr/local/bin/nmon ${HOST}:/usr/local/bin
