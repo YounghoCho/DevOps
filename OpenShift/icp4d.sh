@@ -50,6 +50,7 @@
   //ICP4D 설치파일 받기 깃헙링크
   //portworx 설치파일 받기 IBM SW사이트
   
+  #이 과정은 없애야할듯, docker login시 timeout 에러 발생
   function dockerSetting {
    vi /etc/docker/daemon.json
    echo  { 
