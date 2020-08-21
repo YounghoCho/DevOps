@@ -111,25 +111,9 @@
     --verbose
     
     #WD adm 
-     ./cpd-linux adm --repo wd-repo.yaml --assembly watson-discovery --arch x86_64 --namespace zen --accept-all-licenses &&
      ./cpd-linux adm --repo wd-repo.yaml --assembly watson-discovery --arch x86_64 --namespace zen --accept-all-licenses --apply
      
-    #wd설치
-    ./cpd-linux \
-    --assembly watson-discovery \
-    --namespace zen \
-    --storageclass portworx-db-gp3 \
-    --transfer-image-to docker-registry-default.apps.jo-master.fyre.ibm.com/zen \
-    --repo ./wd-repo.yaml \
-    --target-registry-username=$(oc whoami) \
-    --target-registry-password=$(oc whoami -t) \
-    --insecure-skip-tls-verify \
-    --cluster-pull-prefix docker-registry.default.svc:5000/zen \
-    --accept-all-licenses --silent-install \
-    --override wd-override.yaml \
-    --verbose \
-    --dry-run
-    
+    #wd설치   
     ./cpd-linux \
     --assembly watson-discovery \
     --namespace zen \
@@ -145,54 +129,11 @@
     --verbose    
   }
   
-  function wdInstall {
-  #wd용 override 만들기
-  #사실 위에서 쓴 override파일은 lite 파일이라서 wd-admin pod에 이미지 풀 에러가 생김
-  oc get secrets | grep default-dockercfg #get default-dockercfg-vmf9t
-  oc login #get jo-master.fyre.ibm.com
-  ifconfig #get 9.24.164.69
-  
-  #다시 삭제한 후 재설치
-    #cpd 설치시 base로 생기는 repo.yaml에 watson-discovery override를 추가하자.
-    oc new-project zen &&
-    ./cpd-linux adm --repo repo.yaml --assembly watson-discovery --arch x86_64 --namespace zen --accept-all-licenses &&
-    ./cpd-linux adm --repo repo.yaml --assembly watson-discovery --arch x86_64 --namespace zen --accept-all-licenses --apply &&
-    oc adm policy add-role-to-user cpd-admin-role $(oc whoami) --role-namespace=zen -n zen
-
-    ./cpd-linux \
-    --assembly watson-discovery \
-    --namespace zen \
-    --storageclass portworx-shared-gp3 \
-    --transfer-image-to docker-registry-default.apps.jo-master.fyre.ibm.com/zen \
-    --repo ./repo.yaml \
-    --target-registry-username=$(oc whoami) \
-    --target-registry-password=$(oc whoami -t) \
-    --insecure-skip-tls-verify \
-    --cluster-pull-prefix docker-registry.default.svc:5000/zen \
-    --accept-all-licenses --silent-install \
-    --override wd-override.yaml \
-    --verbose \
-    --dry-run
-
-    ./cpd-linux \
-    --assembly watson-discovery \
-    --namespace zen \
-    --storageclass portworx-shared-gp3 \
-    --transfer-image-to docker-registry-default.apps.jo-master.fyre.ibm.com/zen \
-    --repo ./repo.yaml \
-    --target-registry-username=$(oc whoami) \
-    --target-registry-password=$(oc whoami -t) \
-    --insecure-skip-tls-verify \
-    --cluster-pull-prefix docker-registry.default.svc:5000/zen \
-    --accept-all-licenses --silent-install \
-    --override wd-override.yaml \
-    --verbose
-  }
  #call funtions
  #setCrio
  #kernelSetting
  #cpdInstall
- #wdInstall
+
  
  echo
   echo "ALL DONE"
