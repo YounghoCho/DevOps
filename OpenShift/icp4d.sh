@@ -117,7 +117,7 @@
     ./cpd-linux \
     --assembly watson-discovery \
     --namespace zen \
-    --storageclass portworx-db-gp3 \
+    --storageclass portworx-db-gp \
     --transfer-image-to docker-registry-default.apps.jo-master.fyre.ibm.com/zen \
     --repo ./wd-repo.yaml \
     --target-registry-username=$(oc whoami) \
