@@ -155,6 +155,7 @@
       ssh ${HOST} "sed -ie 's/^SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config"
       ssh ${HOST} touch /.autorelabel
       ssh ${HOST} reboot
+      sleep 30
       echo 
     done
       echo
