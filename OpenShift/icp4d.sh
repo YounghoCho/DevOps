@@ -88,7 +88,6 @@
   
     #lite adm
     oc new-project zen &&
-    ./cpd-linux adm --repo repo.yaml --assembly lite --arch x86_64 --namespace zen --accept-all-licenses &&
     ./cpd-linux adm --repo repo.yaml --assembly lite --arch x86_64 --namespace zen --accept-all-licenses --apply &&
     oc adm policy add-role-to-user cpd-admin-role $(oc whoami) --role-namespace=zen -n zen &&
     oc project zen
