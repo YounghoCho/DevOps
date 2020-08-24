@@ -1,7 +1,18 @@
   #!/usr/bin/bash
+  ##############################################################
+  # You need a VM for provisioning (min 2core 2GBmem 250GBdisk)#
+  # In this case, Used Fyre and Z platform Linux 7.7           #
+  ##############################################################
+  #
   #########################################################################
   # OCP 3.11 auto-provisioning script on Fyre for CPD, WD and EMA only    #
+  # Run this Script on VM to deploy Openshift, ICP4D, Watson-Discovery    #
   #########################################################################
+  #
+  #########################################
+  # Contributor.                          #
+  # khjang@kr.ibm.com, yhj0306@kr.ibm.com #
+  #########################################
 
   # Setup basic environment variables
   source provision.env
@@ -67,7 +78,7 @@
       'https://api.fyre.ibm.com/rest/v1/?operation=build' --data @${TEMP_JSON})
     #위의 API는 Fyre 사이트에 가면 명시되어있다.
     echo ${BUILD_RESPONSE}
-    #BUILD_RESPONSE에서 python을 돌린다. json응답 중 status를 ㅂ추출한다.
+    #BUILD_RESPONSE에서 python을 돌린다. json응답 중 status를 추출한다.
     BUILD_STATUS=$(echo ${BUILD_RESPONSE} | python -c "import sys, json ; print (json.load(sys.stdin)['status'])")
     if [ "${BUILD_STATUS}" == "error" ]; then
       exit 1
@@ -300,7 +311,6 @@
   #################################
   ######## MAIN START HERE ########
   #################################
-
   getCredentials
   setTempDir
   provisionVMs
@@ -317,5 +327,5 @@
   cleanUp
 
   echo
-  echo "ALL DONE"
+  echo "-1- OCP Installation All Done"
   echo
