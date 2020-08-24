@@ -339,7 +339,10 @@
   echo
   echo "START Installing ICP4D"
   echo
-    
+
+  echo "IBM KEY IS " 
+  echo ${IBM_KEY}
+  
   # CRI-O container settings  
   function setCrio {
     #왜 폴더를 찾을 수 없다고 하는걸까??
