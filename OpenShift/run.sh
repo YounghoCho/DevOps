@@ -117,8 +117,7 @@
   function installSSHpass {
     echo
     echo "### Install sshpass"
-    echo
-    yum install -y sshpass
+    echo yum install -y sshpass
     echo
   }
 
