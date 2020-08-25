@@ -1,7 +1,7 @@
   #!/usr/bin/bash
   ##############################################################
   # You need a VM for provisioning (min 2core 2GBmem 250GBdisk)#
-  # In this case, Used Fyre and Z platform Linux 7.7           #
+  # In this case, Used Fyre and Z platform Linux 7.6.          #
   ##############################################################
   #
   #########################################################################
