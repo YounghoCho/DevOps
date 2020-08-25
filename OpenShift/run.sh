@@ -382,6 +382,18 @@ EOF"
     done    
   }
   
+  function installPortworx {
+    scp CP4D_EE_Portworx.bin ${MASTER_HOST}:/root
+    ssh ${MASTER_HOST} chmod 755 CP4D_EE_Portworx.bin
+    ssh ${MASTER_HOST} ./CP4D_EE_Portworx.bin 
+    
+    ssh ${MASTER_HOST} tar zxvf ./ee/cpdv3.0.1_portworx.tgz 
+      ssh ${MASTER_HOST} ./cpd-portworx/px-images/process-px-images.sh -r docker-registry.default.svc:5000 -c docker -u ocadmin -p $(oc whoami -t) -s kube-system -t px_2.5.0.1-dist.tgz &&
+                        export USE_SHARED_MDB_DEVICE=yes &&
+                        ./cpd-portworx/px-install-3.11/px-install.sh -y -pp Always -R docker-registry.default.svc:5000/kube-system install &&
+                        ./cpd-portworx/px-install-3.11/px-sc.sh
+  }
+  
   function installICP4D {
     ssh ${MASTER_HOST} wget https://github.com/IBM/cpd-cli/releases/download/cpd-3.0.1/cloudpak4data-ee-3.0.1.tgz &&
                        tar -xvf cloudpak4data-ee-3.0.1.tgz
