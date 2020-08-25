@@ -382,6 +382,12 @@ EOF"
     done    
   }
   
+  function installICP4D {
+    ssh ${MASTER_HOST} wget https://github.com/IBM/cpd-cli/releases/download/cpd-3.0.1/cloudpak4data-ee-3.0.1.tgz &&
+                       tar -xvf cloudpak4data-ee-3.0.1.tgz
+    
+    
+  }
   
   
   
