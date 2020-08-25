@@ -21,18 +21,6 @@
     scp CP4D_EE_Portworx.bin ${MASTER_HOST}:/root
   }
   
-  # CRI-O container settings  
-  function setCrio {
-    #파일 맨 앞에 쓰려면 어떻게해야할까? 맨 뒤에 쓰면 데몬셋 에러가 남. 네트워크 설정 위치라서 그렇다. 
-    ssh ${MASTER_HOST} "sed -ie 's/# Ansible managed/default_ulimits = [\"nofile=66560:66560\"]/' /etc/crio/crio.conf" &&
-                       "sed -ie 's/^pids_limit = 1024/pids_limit = 12288/' /etc/crio/crio.conf" &&
-                       systemctl daemon-reload && systemctl restart crio 
-    for HOST in ${HOSTS}; do     
-      ssh ${HOST} "sed -ie 's/# Ansible managed/default_ulimits = [\"nofile=66560:66560\"]/' /etc/crio/crio.conf" &&
-                  "sed -ie 's/^pids_limit = 1024/pids_limit = 12288/' /etc/crio/crio.conf" &&
-                  systemctl daemon-reload && systemctl restart crio
-    done
-}
   function kernelSetting {
     ssh ${MASTER_HOST} "cat << EOF >> /etc/sysctl.d/42-cp4d.conf
     kernel.msgmax = 65536
@@ -154,7 +142,5 @@ EOF"
  #move 
  
  #to be test
- #call funtions
- #setCrio
  #kernelSetting
  #cpdInstall
