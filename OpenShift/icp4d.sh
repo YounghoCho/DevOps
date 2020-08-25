@@ -15,53 +15,76 @@
     HOSTS="${HOSTS} ${FYRE_CLUSTER_PREFIX}-${FYRE_WORKER}-${i}"
   done
     
-  # CRI-O container settings  
-  function setCrio {
-    #왜 폴더를 찾을 수 없다고 하는걸까??
-    #그리고 파일 맨 앞에 쓰려면 어떻게해야할까? 맨 뒤에 쓰면 데몬셋 에러가 남. 네트워크 설정 위치라서 그렇다. 
-    #ssh ${MASTER_HOST} echo default_ulimits = ["nofile=66560:66560"] >> /etc/crio/crio.conf 
-    
-    ssh ${MASTER_HOST} "sed -ie 's/^pids_limit = 1024/pids_limit = 12288/' /etc/crio/crio.conf"
-    ssh ${MASTER_HOST} systemctl daemon-reload && systemctl restart crio
-    for HOST in ${HOSTS}; do     
-      ssh ${HOST} "sed -ie 's/^pids_limit = 1024/pids_limit = 12288/' /etc/crio/crio.conf"
-      ssh ${HOST} systemctl daemon-reload && systemctl restart crio  
-    done
-    
-    #vi /etc/security/limits.conf 
-    #* soft nofile 66560
-    #* hard nofile 66560
-    #logout
+  # Move install files
+  function move {
+    scp ./cloudpak4data-ee-3.0.1.tgz ${MASTER_HOST}:/root
+    scp CP4D_EE_Portworx.bin ${MASTER_HOST}:/root
   }
   
+  # CRI-O container settings  
+  function setCrio {
+    #파일 맨 앞에 쓰려면 어떻게해야할까? 맨 뒤에 쓰면 데몬셋 에러가 남. 네트워크 설정 위치라서 그렇다. 
+    ssh ${MASTER_HOST} "sed -ie 's/# Ansible managed/default_ulimits = [\"nofile=66560:66560\"]/' /etc/crio/crio.conf" &&
+                       "sed -ie 's/^pids_limit = 1024/pids_limit = 12288/' /etc/crio/crio.conf" &&
+                       systemctl daemon-reload && systemctl restart crio 
+    for HOST in ${HOSTS}; do     
+      ssh ${HOST} "sed -ie 's/# Ansible managed/default_ulimits = [\"nofile=66560:66560\"]/' /etc/crio/crio.conf" &&
+                  "sed -ie 's/^pids_limit = 1024/pids_limit = 12288/' /etc/crio/crio.conf" &&
+                  systemctl daemon-reload && systemctl restart crio
+    done
+}
   function kernelSetting {
-    vi /etc/sysctl.d/42-cp4d.conf
-    cat << EOF > /etc/sysctl.d/42-cp4d.conf
+    ssh ${MASTER_HOST} "cat << EOF >> /etc/sysctl.d/42-cp4d.conf
     kernel.msgmax = 65536
     kernel.msgmnb = 65536
     kernel.msgmni = 32768
     kernel.shmmni = 16384
     kernel.sem = 250 1024000 100 16384
-    EOF
+EOF"
     #적용 후 확인
-    sysctl -p /etc/sysctl.d/42-cp4d.conf && sysctl -a 2>/dev/null | grep kernel.msg | grep -v next_id
+    ssh ${MASTER_HOST} sysctl -p /etc/sysctl.d/42-cp4d.conf && sysctl -a 2>/dev/null | grep kernel.msg | grep -v next_id
+    
+    for HOST in ${HOSTS}; do  
+      ssh ${HOST} "cat << EOF >> /etc/sysctl.d/42-cp4d.conf
+      kernel.msgmax = 65536
+      kernel.msgmnb = 65536
+      kernel.msgmni = 32768
+      kernel.shmmni = 16384
+      kernel.sem = 250 1024000 100 16384
+EOF"
+    #적용 후 확인
+    ssh ${HOST} sysctl -p /etc/sysctl.d/42-cp4d.conf && sysctl -a 2>/dev/null | grep kernel.msg | grep -v next_id    
+    done    
+  } 
+  function installPortworx {
+    scp CP4D_EE_Portworx.bin ${MASTER_HOST}:/root
+    ssh ${MASTER_HOST} chmod 755 CP4D_EE_Portworx.bin
+    ssh ${MASTER_HOST} ./CP4D_EE_Portworx.bin 
+    ssh ${MASTER_HOST} tar zxvf ./ee/cpdv3.0.1_portworx.tgz 
+    ssh ${MASTER_HOST} ./cpd-portworx/px-images/process-px-images.sh -r docker-registry.default.svc:5000 -c docker -u ocadmin -p $(oc whoami -t) -s kube-system -t px_2.5.0.1-dist.tgz &&
+                        export USE_SHARED_MDB_DEVICE=yes &&
+                        ./cpd-portworx/px-install-3.11/px-install.sh -y -pp Always -R docker-registry.default.svc:5000/kube-system install &&
+                        ./cpd-portworx/px-install-3.11/px-sc.sh
   }
+  
+  function installICP4D {
+    ssh ${MASTER_HOST} wget https://github.com/IBM/cpd-cli/releases/download/cpd-3.0.1/cloudpak4data-ee-3.0.1.tgz &&
+                       tar -xvf cloudpak4data-ee-3.0.1.tgz
+    
+    
+  }
+  
+  
+  
+  
+  
+  
   
   //ICP4D 설치파일 받기 깃헙링크
   //portworx 설치파일 받기 IBM SW사이트
   
   #이 과정은 없애야할듯, docker login시 timeout 에러 발생
-  function dockerSetting {
-   vi /etc/docker/daemon.json
-   echo  { 
-    "experimental": false, 
-    "debug": true,
-    "insecure-registries" : ["registry.redhat.io", "docker.io", "docker-registry.default.svc:5000"]
-   }
-   systemctl restart docker 
-   docker info
-   #worker nodes 도 반복
-   
+  function portworx {
    #install
    ./process-px-images.sh -r docker-registry.default.svc:5000 -u ocadmin -p $(oc whoami -t) -c docker -s kube-system -d ./imgtemp -t ./px_2.5.0.1-dist.tgz  
    ./px-install.sh -pp Always -R docker-registry.default.svc:5000/kube-system install USE_SHARED_MDB_DEVICE
@@ -127,14 +150,11 @@
     --override wd-override.yaml \
     --verbose    
   }
-  
+ #ok
+ #move 
+ 
+ #to be test
  #call funtions
  #setCrio
  #kernelSetting
  #cpdInstall
-
- 
- echo
-  echo "ALL DONE"
-  echo
-    
