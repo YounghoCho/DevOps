@@ -14,12 +14,6 @@
   for (( i=1 ; i<=${N_WORKER} ; i++ )); do
     HOSTS="${HOSTS} ${FYRE_CLUSTER_PREFIX}-${FYRE_WORKER}-${i}"
   done
-    
-  # Move install files
-  function move {
-    scp ./cloudpak4data-ee-3.0.1.tgz ${MASTER_HOST}:/root
-    scp CP4D_EE_Portworx.bin ${MASTER_HOST}:/root
-  }
   
   function kernelSetting {
     ssh ${MASTER_HOST} "cat << EOF >> /etc/sysctl.d/42-cp4d.conf
@@ -44,15 +38,47 @@ EOF"
     ssh ${HOST} sysctl -p /etc/sysctl.d/42-cp4d.conf && sysctl -a 2>/dev/null | grep kernel.msg | grep -v next_id    
     done    
   } 
+  
+  function setRegistry {
+  #이 과정 안하면 registry에 pending걸리는 pod가 있다. 그리고 이것때문에 portworx가 생성이 안됨. 꼭 해줘야하니 다시한번 시행착오 하더라도 해보자
+  #master setting
+  #https://docs.openshift.com/container-platform/3.11/install_config/registry/securing_and_exposing_registry.html
+  oc login https://shin-master.fyre.ibm.com:8443 && docker login -u ocadmin -p $(oc whoami -t) 172.30.135.201:5000
+  #nodes setting
+  oc get svc/docker-registry
+  oc login https://shin-master.fyre.ibm.com:8443 && docker login -u ocadmin -p $(oc whoami -t) 172.30.135.201:5000
+  }
+  
   function installPortworx {
     scp CP4D_EE_Portworx.bin ${MASTER_HOST}:/root
     ssh ${MASTER_HOST} chmod 755 CP4D_EE_Portworx.bin
     ssh ${MASTER_HOST} ./CP4D_EE_Portworx.bin 
     ssh ${MASTER_HOST} tar zxvf ./ee/cpdv3.0.1_portworx.tgz 
-    ssh ${MASTER_HOST} ./cpd-portworx/px-images/process-px-images.sh -r docker-registry.default.svc:5000 -c docker -u ocadmin -p $(oc whoami -t) -s kube-system -t px_2.5.0.1-dist.tgz &&
-                        export USE_SHARED_MDB_DEVICE=yes &&
-                        ./cpd-portworx/px-install-3.11/px-install.sh -y -pp Always -R docker-registry.default.svc:5000/kube-system install &&
-                        ./cpd-portworx/px-install-3.11/px-sc.sh
+    export token=$(ssh ${MASTER_HOST} oc whoami -t)
+    ssh ${MASTER_HOST} ./cpd-portworx/px-images/process-px-images.sh -r docker-registry.default.svc:5000 -u ocadmin -p $token -s kube-system -c docker -d ./imgtemp -t px_2.5.0.1-dist.tgz &&
+    ssh ${MASTER_HOST} export USE_SHARED_MDB_DEVICE=yes 
+    ssh ${MASTER_HOST} ./cpd-portworx/px-install-3.11/px-install.sh -y -pp Always -R docker-registry.default.svc:5000/kube-system install USE_SHARED_MDB_DEVICE
+    ssh ${MASTER_HOST} ./cpd-portworx/px-install-3.11/px-sc.sh
+    
+    #config nonshared storageclass
+    for HOST in ${HOSTS}; do  
+       ssh ${HOST} "echo LOCKD_TCPPORT=9023 >> /etc/sysconfig/nfs &&
+                    echo LOCKD_UDPPORT=9024 >> /etc/sysconfig/nfs &&
+                    echo MOUNTD_PORT=9025 >> /etc/sysconfig/nfs &&
+                    echo STATD_PORT=9026 >> /etc/sysconfig/nfs &&
+                    systemctl restart nfs-server &&
+                    iptables -I INPUT -p tcp -m tcp --match multiport --dports 111,2049,9023,9025,9026 -j ACCEPT &&
+                    iptables -I OUTPUT -p tcp -m tcp --match multiport --dports 111,2049,9023,9025,9026 -j ACCEPT &&
+                    iptables -I INPUT -p udp -m udp --dport 111 -j ACCEPT &&
+                    iptables -I INPUT -p udp -m udp --dport 2049 -j ACCEPT &&
+                    iptables -I INPUT -p udp -m udp --dport 9024 -j ACCEPT &&
+                    iptables -I OUTPUT -p udp -m udp --dport 111 -j ACCEPT &&
+                    iptables -I OUTPUT -p udp -m udp --dport 2049 -j ACCEPT &&
+                    iptables -I OUTPUT -p udp -m udp --dport 9024 -j ACCEPT &&
+                    iptables-save >/etc/sysconfig/iptables"
+        ssh ${HOST} "cat /etc/sysconfig/nfs | grep LOCKD_TCPPORT=9023"
+    done  
+    #pod들에 에러가 발생하면 각 deployment, pods들을 선택삭제 하고 다시 인스톨 하면 된다(버그)
   }
   
   function installICP4D {
@@ -64,37 +90,8 @@ EOF"
   
   
   
-  
-  
-  
-  
-  //ICP4D 설치파일 받기 깃헙링크
-  //portworx 설치파일 받기 IBM SW사이트
-  
-  #이 과정은 없애야할듯, docker login시 timeout 에러 발생
-  function portworx {
-   #install
-   ./process-px-images.sh -r docker-registry.default.svc:5000 -u ocadmin -p $(oc whoami -t) -c docker -s kube-system -d ./imgtemp -t ./px_2.5.0.1-dist.tgz  
-   ./px-install.sh -pp Always -R docker-registry.default.svc:5000/kube-system install USE_SHARED_MDB_DEVICE
-  
-    #pod들에 에러가 발생하는데 각 deployment, pods들을 선택삭제 하고 다시 인스톨 하면 된다(버그)
-   
-    #after install portworx, 각 노드에 실행 (마스터에는 하면 Failed to copy modules folder to shared pvc 에러 발생)
-    echo LOCKD_TCPPORT=9023 >> /etc/sysconfig/nfs
-    echo LOCKD_UDPPORT=9024 >> /etc/sysconfig/nfs
-    echo MOUNTD_PORT=9025 >> /etc/sysconfig/nfs
-    echo STATD_PORT=9026 >> /etc/sysconfig/nfs
-    systemctl restart nfs-server
-    iptables -I INPUT -p tcp -m tcp --match multiport --dports 111,2049,9023,9025,9026 -j ACCEPT
-    iptables -I OUTPUT -p tcp -m tcp --match multiport --dports 111,2049,9023,9025,9026 -j ACCEPT
-    iptables -I INPUT -p udp -m udp --match multiport --dports 111,2049,9024 -j ACCEPT
-    iptables -I OUTPUT -p udp -m udp --match multiport --dports 111,2049,9024 -j ACCEPT
-    iptables-save >/etc/sysconfig/iptables
-    cat /etc/sysconfig/nfs | grep -E '9023|9024|9025|9026' && cat /etc/sysconfig/iptables | grep -E '111,2049'
-    #install storage class
-     ./px-sc.sh
-  }
-  
+ 
+
   function cpdInstall {
   
     #lite adm
@@ -138,9 +135,6 @@ EOF"
     --override wd-override.yaml \
     --verbose    
   }
- #ok
- #move 
- 
- #to be test
- #kernelSetting
- #cpdInstall
+
+#kernelSetting
+installPortworx
