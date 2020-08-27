@@ -82,59 +82,88 @@ EOF"
   }
   
   function installICP4D {
-    ssh ${MASTER_HOST} wget https://github.com/IBM/cpd-cli/releases/download/cpd-3.0.1/cloudpak4data-ee-3.0.1.tgz &&
-                       tar -xvf cloudpak4data-ee-3.0.1.tgz
-    
-    
+    ssh ${MASTER_HOST} wget https://github.com/IBM/cpd-cli/releases/download/cpd-3.0.1/cloudpak4data-ee-3.0.1.tgz
+    ssh ${MASTER_HOST} tar -xvf cloudpak4data-ee-3.0.1.tgz
+
+    ssh ${MASTER_HOST} "cat << EOF >> ./bin/repo.yaml
+      registry:
+        - url: cp.icr.io/cp/cpd
+          username: cp
+          apikey: ${IBM_KEY} 
+          name: base-registry
+        - url: cp.icr.io
+          username: cp
+          apikey: ${IBM_KEY}
+          namespace: "cp/watson-discovery"
+          name: watson-discovery-registry
+      fileservers:
+        - url: https://raw.github.com/IBM/cloud-pak/master/repo/cpd3
+EOF"   
+   
+    ssh ${MASTER_HOST} "cat << EOF >> ./bin/override.yaml
+      zenCoreMetaDb:
+        storageClass: portworx-metastoredb-sc
+      global:
+        deploymentType: "Development"
+        image:
+          pullSecret: ${MASTER_SECRET}
+        imagePullSecret: ${MASTER_SECRET}
+      core:
+        ingestion:
+          mount:
+            storageClassName: "portworx-nonshared-gp"
+      elastic:
+        persistence:
+          storageClassName: "portworx-nonshared-gp"
+      wire:
+        kubernetesHost: ${MASTER_HOSTNAME}
+        kubernetesIP: ${MASTER_IP}
+EOF"    
+
+      ssh ${MASTER_HOST}  "./bin/cpd-linux adm \
+        --repo ./bin/repo.yaml \
+        --assembly watson-discovery \
+        --namespace zen \
+        --accept-all-licenses"
+      ssh ${MASTER_HOST}  "./bin/cpd-linux adm \
+        --repo ./bin/repo.yaml \
+        --assembly watson-discovery \
+        --namespace zen \
+        --accept-all-licenses \
+        --apply" 
+                    
+  #get docker access
+  export token=$(ssh ${MASTER_HOST} oc whoami -t)
+  ssh ${MASTER_HOST} docker login docker-registry.default.svc:5000 -u ocadmin -p $token
+  for HOST in ${HOSTS}; do  
+       ssh ${HOST} docker login docker-registry.default.svc:5000 -u ocadmin -p $token
+  done
+  
+  #install cp4d and wd at once
+  export token=$(ssh ${MASTER_HOST} oc whoami -t)
+  ssh ${MASTER_HOST} "./bin/cpd-linux \
+--repo ./bin/repo.yaml \
+--assembly watson-discovery \
+--namespace zen \
+--storageclass portworx-shared-gp \
+--transfer-image-to docker-registry.default.svc:5000/zen \
+--cluster-pull-prefix docker-registry.default.svc:5000/zen \
+--target-registry-username ocadmin \
+--target-registry-password $token \
+--override ./bin/override.yaml \
+--insecure-skip-tls-verify \
+--accept-all-licenses"
   }
-  
-  
-  
- 
 
-  function cpdInstall {
-  
-    #lite adm
-    oc new-project zen &&
-    ./cpd-linux adm --repo repo.yaml --assembly lite --arch x86_64 --namespace zen --accept-all-licenses --apply &&
-    oc adm policy add-role-to-user cpd-admin-role $(oc whoami) --role-namespace=zen -n zen &&
-    oc project zen
 
-#portworx storage class는 gp3는 너무 커서 pvc pending이 생기니까 pg로 
-        
-     #lite 먼저 설치
-    ./cpd-linux \
-    --assembly lite \
-    --namespace zen \
-    --storageclass portworx-shared-gp \
-    --transfer-image-to docker-registry-default.apps.jo-master.fyre.ibm.com/zen \
-    --repo ./repo.yaml \
-    --target-registry-username=$(oc whoami) \
-    --target-registry-password=$(oc whoami -t) \
-    --insecure-skip-tls-verify \
-    --cluster-pull-prefix docker-registry.default.svc:5000/zen \
-    --accept-all-licenses --silent-install \
-    --override cp-pwx-x86.YAML \
-    --verbose
-    
-    #WD adm 
-     ./cpd-linux adm --repo wd-repo.yaml --assembly watson-discovery --arch x86_64 --namespace zen --accept-all-licenses --apply
-     
-    #wd설치   
-    ./cpd-linux \
-    --assembly watson-discovery \
-    --namespace zen \
-    --storageclass portworx-db-gp \
-    --transfer-image-to docker-registry-default.apps.jo-master.fyre.ibm.com/zen \
-    --repo ./wd-repo.yaml \
-    --target-registry-username=$(oc whoami) \
-    --target-registry-password=$(oc whoami -t) \
-    --insecure-skip-tls-verify \
-    --cluster-pull-prefix docker-registry.default.svc:5000/zen \
-    --accept-all-licenses --silent-install \
-    --override wd-override.yaml \
-    --verbose    
-  }
-
-#kernelSetting
+########
+# Main #
+########
+kernelSetting
+setRegistry
 installPortworx
+installICP4D
+
+echo
+echo "ICP4D & WD are installed"
+echo
