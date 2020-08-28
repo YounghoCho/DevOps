@@ -155,7 +155,6 @@ EOF"
 --accept-all-licenses"
   }
 
-
 ########
 # Main #
 ########
